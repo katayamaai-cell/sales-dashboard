@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>営業進捗ダッシュボード</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    background: #0f172a; color: #f1f5f9;
+    min-height: 100vh; padding: 16px;
+  }
+  header { text-align: center; padding: 20px 0 8px; }
+  header h1 { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+  header p { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .updated { font-size: 11px; color: #475569; text-align: center; margin-bottom: 16px; }
+
+  /* 入力パネル */
+  .input-panel { background: #1e293b; border: 1px solid #334155; border-radius: 16px; margin-bottom: 16px; overflow: hidden; }
+  .input-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; cursor: pointer; user-select: none; }
+  .input-panel-header h2 { font-size: 14px; font-weight: 600; color: #cbd5e1; }
+  .toggle-icon { font-size: 18px; color: #64748b; transition: transform 0.2s; }
+  .input-body { padding: 0 16px 16px; display: none; }
+  .input-body.open { display: block; }
+  .input-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .input-label { font-size: 13px; color: #94a3b8; width: 110px; flex-shrink: 0; }
+  .input-field {
+    flex: 1; background: #0f172a; border: 1px solid #334155;
+    border-radius: 10px; color: #f1f5f9; font-size: 16px;
+    padding: 10px 12px; outline: none; text-align: right;
+  }
+  .input-field:focus { border-color: #3b82f6; }
+  .input-unit { font-size: 12px; color: #64748b; width: 28px; flex-shrink: 0; }
+  .divider { height: 1px; background: #334155; margin: 14px 0; }
+  .target-toggle { font-size: 12px; color: #3b82f6; text-align: center; padding: 4px 0 8px; cursor: pointer; }
+  .target-section { display: none; }
+  .target-section.open { display: block; }
+  .target-label-sub { font-size: 11px; color: #475569; margin-bottom: 10px; text-align: center; }
+  .apply-btn {
+    display: block; width: 100%;
+    background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+    color: #fff; border: none; border-radius: 10px;
+    padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 4px;
+  }
+  .apply-btn:active { opacity: 0.85; }
+
+  /* サマリー */
+  .summary-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .summary-chip { flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px 10px; text-align: center; }
+  .s-label { font-size: 10px; color: #64748b; }
+  .s-val { font-size: 16px; font-weight: 700; margin-top: 4px; }
+  .s-val.green { color: #34d399; }
+  .s-val.red { color: #f87171; }
+
+  /* カード */
+  .card { background: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 14px; border: 1px solid #334155; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .card.green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+  .card.red::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .card.yellow::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .card.neutral::before { background: #334155; }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .card-title { font-size: 13px; color: #94a3b8; font-weight: 500; }
+  .badge { font-size: 22px; line-height: 1; }
+  .card-main { display: flex; justify-content: space-between; align-items: flex-end; }
+  .actual { font-size: 28px; font-weight: 800; color: #f1f5f9; }
+  .actual span { font-size: 14px; font-weight: 400; color: #64748b; margin-left: 2px; }
+  .target-info { text-align: right; }
+  .target-info .target { font-size: 11px; color: #64748b; }
+  .target-info .target b { color: #94a3b8; }
+  .target-info .pace { font-size: 11px; color: #64748b; margin-top: 4px; }
+  .progress-wrap { margin-top: 14px; }
+  .progress-labels { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-bottom: 6px; }
+  .rate { font-weight: 700; }
+  .rate.green { color: #34d399; }
+  .rate.red { color: #f87171; }
+  .rate.yellow { color: #fbbf24; }
+  .bar-bg { background: #334155; border-radius: 99px; height: 8px; position: relative; }
+  .bar-fill { height: 8px; border-radius: 99px; transition: width 0.8s ease; }
+  .bar-fill.green { background: linear-gradient(90deg, #10b981, #34d399); }
+  .bar-fill.red { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .bar-fill.yellow { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .bar-fill.neutral { background: #475569; }
+  .pace-line { position: absolute; top: -3px; width: 2px; height: 14px; background: #94a3b8; border-radius: 2px; }
+  .pace-label { position: absolute; top: -18px; font-size: 9px; color: #94a3b8; transform: translateX(-50%); white-space: nowrap; }
+  .behind { text-align: right; font-size: 12px; font-weight: 700; margin-top: 6px; min-height: 18px; }
+  .sub-info { display: flex; gap: 8px; margin-top: 10px; }
+  .sub-chip { background: #0f172a; border-radius: 8px; padding: 6px 10px; font-size: 11px; color: #64748b; flex: 1; text-align: center; }
+  .sub-chip b { display: block; font-size: 13px; color: #cbd5e1; margin-top: 2px; }
+  footer { text-align: center; padding: 20px 0 8px; font-size: 11px; color: #334155; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📊 営業進捗ダッシュボード</h1>
+  <p id="month-label"></p>
+</header>
+<p class="updated" id="updated-time">実績を入力して「反映する」を押してください</p>
+
+<!-- 入力パネル -->
+<div class="input-panel">
+  <div class="input-panel-header" onclick="togglePanel()">
+    <h2>✏️ 実績・目標を入力</h2>
+    <span class="toggle-icon" id="panel-icon">▼</span>
+  </div>
+  <div class="input-body open" id="input-body">
+    <p style="font-size:12px;color:#475569;margin-bottom:12px;">📅 今月の実績（月累計）を入力してください</p>
+    <div class="input-row">
+      <div class="input-label">💰 売上金額</div>
+      <input class="input-field" id="in-sales" type="number" inputmode="numeric" placeholder="0">
+      <div class="input-unit">円</div>
+    </div>
+    <div class="input-row">
+      <div class="input-label">🔍 Indeed費消</div>
+      <input class="input-field" id="in-indeed" type="number" inputmode="numeric" placeholder="0">
+      <div class="input-unit">円</div>
+    </div>
+    <div class="input-row">
+      <div class="input-label">📋 新規受注件数</div>
+      <input class="input-field" id="in-orders" type="number" inputmode="numeric" placeholder="0">
+      <div class="input-unit">件</div>
+    </div>
+    <div class="divider"></div>
+    <div class="target-toggle" onclick="toggleTargets()">⚙️ 月次目標値を変更する ▾</div>
+    <div class="target-section" id="target-section">
+      <p class="target-label-sub">※ 月初に一度設定すればOKです</p>
+      <div class="input-row">
+        <div class="input-label">売上目標</div>
+        <input class="input-field" id="tgt-sales" type="number" inputmode="numeric" placeholder="0">
+        <div class="input-unit">円</div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">Indeed目標</div>
+        <input class="input-field" id="tgt-indeed" type="number" inputmode="numeric" placeholder="0">
+        <div class="input-unit">円</div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">受注目標</div>
+        <input class="input-field" id="tgt-orders" type="number" inputmode="numeric" placeholder="0">
+        <div class="input-unit">件</div>
+      </div>
+    </div>
+    <button class="apply-btn" onclick="applyData()">✅ 反映する</button>
+  </div>
+</div>
+
+<!-- サマリー -->
+<div class="summary-row">
+  <div class="summary-chip">
+    <div class="s-label">今月の営業日</div>
+    <div class="s-val" id="biz-total">--</div>
+  </div>
+  <div class="summary-chip">
+    <div class="s-label">経過営業日</div>
+    <div class="s-val green" id="biz-elapsed">--</div>
+  </div>
+  <div class="summary-chip">
+    <div class="s-label">残り営業日</div>
+    <div class="s-val red" id="biz-remain">--</div>
+  </div>
+</div>
+
+<!-- 売上カード -->
+<div class="card neutral" id="card-sales">
+  <div class="card-header">
+    <div class="card-title">💰 売上金額</div>
+    <div class="badge" id="badge-sales">―</div>
+  </div>
+  <div class="card-main">
+    <div class="actual" id="actual-sales"><span style="font-size:14px;color:#475569">未入力</span></div>
+    <div class="target-info">
+      <div class="target">月間目標: <b id="target-sales">--</b> 円</div>
+      <div class="pace">日割ペース: <b id="pace-sales">--</b> 円</div>
+    </div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-labels"><span>達成率</span><span class="rate" id="rate-sales">--%</span></div>
+    <div class="bar-bg">
+      <div class="bar-fill neutral" id="bar-sales" style="width:0%"></div>
+      <div class="pace-line" id="pace-line-sales" style="left:0%"><div class="pace-label">ペース</div></div>
+    </div>
+    <div class="behind" id="behind-sales"></div>
+  </div>
+  <div class="sub-info">
+    <div class="sub-chip">残り必要<b id="remain-sales">--</b></div>
+    <div class="sub-chip">1営業日あたり<b id="per-day-sales">--</b></div>
+  </div>
+</div>
+
+<!-- Indeed費消カード -->
+<div class="card neutral" id="card-indeed">
+  <div class="card-header">
+    <div class="card-title">🔍 Indeed費消金額</div>
+    <div class="badge" id="badge-indeed">―</div>
+  </div>
+  <div class="card-main">
+    <div class="actual" id="actual-indeed"><span style="font-size:14px;color:#475569">未入力</span></div>
+    <div class="target-info">
+      <div class="target">月間目標: <b id="target-indeed">--</b> 円</div>
+      <div class="pace">日割ペース(暦日): <b id="pace-indeed">--</b> 円</div>
+    </div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-labels"><span>達成率</span><span class="rate" id="rate-indeed">--%</span></div>
+    <div class="bar-bg">
+      <div class="bar-fill neutral" id="bar-indeed" style="width:0%"></div>
+      <div class="pace-line" id="pace-line-indeed" style="left:0%"><div class="pace-label">ペース</div></div>
+    </div>
+    <div class="behind" id="behind-indeed"></div>
+  </div>
+  <div class="sub-info">
+    <div class="sub-chip">残り必要<b id="remain-indeed">--</b></div>
+    <div class="sub-chip">1日あたり<b id="per-day-indeed">--</b></div>
+  </div>
+</div>
+
+<!-- 受注件数カード -->
+<div class="card neutral" id="card-orders">
+  <div class="card-header">
+    <div class="card-title">📋 新規受注件数</div>
+    <div class="badge" id="badge-orders">―</div>
+  </div>
+  <div class="card-main">
+    <div class="actual" id="actual-orders"><span style="font-size:14px;color:#475569">未入力</span></div>
+    <div class="target-info">
+      <div class="target">月間目標: <b id="target-orders">--</b> 件</div>
+      <div class="pace">日割ペース: <b id="pace-orders">--</b> 件</div>
+    </div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-labels"><span>達成率</span><span class="rate" id="rate-orders">--%</span></div>
+    <div class="bar-bg">
+      <div class="bar-fill neutral" id="bar-orders" style="width:0%"></div>
+      <div class="pace-line" id="pace-line-orders" style="left:0%"><div class="pace-label">ペース</div></div>
+    </div>
+    <div class="behind" id="behind-orders"></div>
+  </div>
+  <div class="sub-info">
+    <div class="sub-chip">残り必要<b id="remain-orders">--</b></div>
+    <div class="sub-chip">1営業日あたり<b id="per-day-orders">--</b></div>
+  </div>
+</div>
+
+<footer>朝の入力後、チームで共有してご利用ください</footer>
+
+<script>
+const state = {
+  targets: { sales: 0, indeed: 0, orders: 0 },
+  actuals: { sales: null, indeed: null, orders: null },
+  holidays: ['2026-03-20'],
+  okThreshold: 90,
+  ngThreshold: 70,
+};
+
+function calcDays(year, month) {
+  const total = new Date(year, month, 0).getDate();
+  const biz = [];
+  for (let d = 1; d <= total; d++) {
+    const dt = new Date(year, month - 1, d);
+    const ds = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    if (dt.getDay() !== 0 && dt.getDay() !== 6 && !state.holidays.includes(ds)) biz.push(d);
+  }
+  const now = new Date();
+  const today = (now.getFullYear() === year && now.getMonth()+1 === month) ? now.getDate() : total;
+  return {
+    totalBiz: biz.length,
+    elapsedBiz: biz.filter(d => d <= today).length,
+    totalCal: total,
+    elapsedCal: today,
+  };
+}
+
+function togglePanel() {
+  const body = document.getElementById('input-body');
+  const icon = document.getElementById('panel-icon');
+  const isOpen = body.classList.toggle('open');
+  icon.textContent = isOpen ? '▲' : '▼';
+}
+
+function toggleTargets() {
+  document.getElementById('target-section').classList.toggle('open');
+}
+
+function applyData() {
+  const v = id => { const el = document.getElementById(id); return el && el.value !== '' ? parseFloat(el.value) : null; };
+  state.actuals.sales  = v('in-sales');
+  state.actuals.indeed = v('in-indeed');
+  state.actuals.orders = v('in-orders');
+  const ts = v('tgt-sales'), ti = v('tgt-indeed'), to = v('tgt-orders');
+  if (ts !== null) state.targets.sales  = ts;
+  if (ti !== null) state.targets.indeed = ti;
+  if (to !== null) state.targets.orders = to;
+  render();
+  // パネルを閉じる
+  const body = document.getElementById('input-body');
+  const icon = document.getElementById('panel-icon');
+  body.classList.remove('open');
+  icon.textContent = '▼';
+}
+
+function fmt(n, dec) { return n === null || isNaN(n) ? '--' : n.toLocaleString('ja-JP', {minimumFractionDigits: dec||0, maximumFractionDigits: dec||0}); }
+
+function set(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function setHTML(id, val) { const el = document.getElementById(id); if (el) el.innerHTML = val; }
+
+function renderCard(id, actual, target, elapsed, total, unit) {
+  const isMoney = unit === '円';
+  const hasData = actual !== null && target > 0;
+  const paceNow   = total > 0 ? (target / total) * elapsed : 0;
+  const paceRate  = total > 0 ? (elapsed / total) * 100 : 0;
+  const achieveRate = hasData ? (actual / target) * 100 : 0;
+  const vsRate    = hasData && paceNow > 0 ? (actual / paceNow) * 100 : 0;
+  const remain    = hasData ? Math.max(0, target - actual) : null;
+  const remainDays = total - elapsed;
+  const perDay    = remain !== null && remainDays > 0 ? remain / remainDays : null;
+  const diff      = hasData ? actual - paceNow : null;
+
+  let color = 'neutral', badge = '―';
+  if (hasData) {
+    if (vsRate >= state.okThreshold)      { color = 'green';  badge = '◎'; }
+    else if (vsRate >= state.ngThreshold) { color = 'yellow'; badge = '△'; }
+    else                                   { color = 'red';    badge = '❌'; }
+  }
+
+  document.getElementById('card-' + id).className = 'card ' + color;
+  set('badge-' + id, badge);
+
+  setHTML('actual-' + id, hasData
+    ? `${Math.round(actual).toLocaleString('ja-JP')} <span>${unit}</span>`
+    : `<span style="font-size:14px;color:#475569">未入力</span>`);
+
+  set('target-' + id, isMoney ? Math.round(target).toLocaleString('ja-JP') : fmt(target));
+  set('pace-' + id,   isMoney ? Math.round(paceNow).toLocaleString('ja-JP') : fmt(paceNow, 1));
+
+  // ビハインド表示
+  const behindEl = document.getElementById('behind-' + id);
+  if (behindEl) {
+    if (diff !== null) {
+      const absStr = isMoney
+        ? Math.round(Math.abs(diff)).toLocaleString('ja-JP') + ' 円'
+        : Math.round(Math.abs(diff)).toLocaleString('ja-JP') + ' 件';
+      behindEl.innerHTML = diff >= 0
+        ? `<span style="color:#34d399">▲ ${absStr} 先行</span>`
+        : `<span style="color:#f87171">▼ ${absStr} ビハインド</span>`;
+    } else {
+      behindEl.textContent = '';
+    }
+  }
+
+  const fmtVal = n => n === null ? '--' : (isMoney ? Math.round(n).toLocaleString('ja-JP') + ' 円' : Math.round(n).toLocaleString('ja-JP') + ' 件');
+  set('remain-' + id,   fmtVal(remain));
+  set('per-day-' + id,  fmtVal(perDay));
+
+  const rateEl = document.getElementById('rate-' + id);
+  if (rateEl) { rateEl.textContent = hasData ? `${fmt(achieveRate,1)}%` : '--%'; rateEl.className = 'rate ' + color; }
+
+  const bar = document.getElementById('bar-' + id);
+  if (bar) { bar.style.width = hasData ? Math.min(achieveRate, 100) + '%' : '0%'; bar.className = 'bar-fill ' + color; }
+
+  const pl = document.getElementById('pace-line-' + id);
+  if (pl) pl.style.left = Math.min(paceRate, 100) + '%';
+}
+
+function render() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  set('month-label', `${y}年${m}月`);
+  const { totalBiz, elapsedBiz, totalCal, elapsedCal } = calcDays(y, m);
+  set('biz-total',   totalBiz + ' 日');
+  set('biz-elapsed', elapsedBiz + ' 日');
+  set('biz-remain',  (totalBiz - elapsedBiz) + ' 日');
+  renderCard('sales',  state.actuals.sales,  state.targets.sales,  elapsedBiz, totalBiz, '円');
+  renderCard('indeed', state.actuals.indeed, state.targets.indeed, elapsedCal, totalCal, '円');
+  renderCard('orders', state.actuals.orders, state.targets.orders, elapsedBiz, totalBiz, '件');
+  const anyData = Object.values(state.actuals).some(v => v !== null);
+  set('updated-time', anyData ? `最終更新: ${now.toLocaleString('ja-JP')}` : '実績を入力して「反映する」を押してください');
+}
+
+render();
+</script>
+</body>
+</html>
