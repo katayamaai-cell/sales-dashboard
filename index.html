@@ -142,6 +142,7 @@
         <div class="input-unit">件</div>
       </div>
     </div>
+    <p id="sheet-status" style="font-size:11px;text-align:center;margin-bottom:8px;color:#64748b;"></p>
     <button class="apply-btn" onclick="applyData()">✅ 反映する</button>
   </div>
 </div>
@@ -283,6 +284,39 @@ function toggleTargets() {
   document.getElementById('target-section').classList.toggle('open');
 }
 
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSmIL4vvj5_A89TLSLydJAprekfqnJr9AEpYMgiDtmZhjRbg1AQ6W3yHwgmPujsMKfLGPTa5by-IOe0/pub?gid=0&single=true&output=csv';
+
+async function loadTargetsFromSheet() {
+  const statusEl = document.getElementById('sheet-status');
+  try {
+    statusEl.textContent = '⏳ 目標値を読み込み中...';
+    const res = await fetch(SHEET_URL);
+    if (!res.ok) throw new Error('fetch failed');
+    const text = await res.text();
+    const rows = text.trim().split('\n').map(r => r.split(','));
+    rows.forEach(([key, val]) => {
+      const k = key.trim(), v = parseFloat(val);
+      if (k === 'sales_target'  && !isNaN(v)) state.targets.sales  = v;
+      if (k === 'indeed_target' && !isNaN(v)) state.targets.indeed = v;
+      if (k === 'orders_target' && !isNaN(v)) state.targets.orders = v;
+    });
+    // 入力欄にも反映
+    ['sales','indeed','orders'].forEach(k => {
+      const el = document.getElementById('tgt-' + k);
+      if (el && state.targets[k]) el.value = state.targets[k];
+    });
+    statusEl.textContent = '✅ 目標値をスプレッドシートから読み込みました';
+    statusEl.style.color = '#34d399';
+  } catch(e) {
+    statusEl.textContent = '⚠️ 読み込み失敗。手動で目標値を入力してください';
+    statusEl.style.color = '#f87171';
+  }
+}
+
+function saveTargets() {
+  localStorage.setItem('sd_targets', JSON.stringify(state.targets));
+}
+
 function applyData() {
   const v = id => { const el = document.getElementById(id); return el && el.value !== '' ? parseFloat(el.value) : null; };
   state.actuals.sales  = v('in-sales');
@@ -292,7 +326,8 @@ function applyData() {
   if (ts !== null) state.targets.sales  = ts;
   if (ti !== null) state.targets.indeed = ti;
   if (to !== null) state.targets.orders = to;
-  render();
+  saveTargets();
+  loadTargetsFromSheet().then(() => render());
   // パネルを閉じる
   const body = document.getElementById('input-body');
   const icon = document.getElementById('panel-icon');
