@@ -284,23 +284,19 @@ function toggleTargets() {
   document.getElementById('target-section').classList.toggle('open');
 }
 
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSmIL4vvj5_A89TLSLydJAprekfqnJr9AEpYMgiDtmZhjRbg1AQ6W3yHwgmPujsMKfLGPTa5by-IOe0/pub?gid=0&single=true&output=csv';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzbWhAMP-eMUvtESrdQFikh4JAbVZq0XC5iPF2qkqNxnlJXaWMZWYIxlnzP1zd6dQZM/exec';
 
 async function loadTargetsFromSheet() {
   const statusEl = document.getElementById('sheet-status');
+  statusEl.textContent = '⏳ 目標値を読み込み中...';
+  statusEl.style.color = '#64748b';
   try {
-    statusEl.textContent = '⏳ 目標値を読み込み中...';
-    const res = await fetch(SHEET_URL);
-    if (!res.ok) throw new Error('fetch failed');
-    const text = await res.text();
-    const rows = text.trim().split('\n').map(r => r.split(','));
-    rows.forEach(([key, val]) => {
-      const k = key.trim(), v = parseFloat(val);
-      if (k === 'sales_target'  && !isNaN(v)) state.targets.sales  = v;
-      if (k === 'indeed_target' && !isNaN(v)) state.targets.indeed = v;
-      if (k === 'orders_target' && !isNaN(v)) state.targets.orders = v;
-    });
-    // 入力欄にも反映
+    const res = await fetch(GAS_URL);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    if (data.sales_target)  state.targets.sales  = parseFloat(data.sales_target);
+    if (data.indeed_target) state.targets.indeed = parseFloat(data.indeed_target);
+    if (data.orders_target) state.targets.orders = parseFloat(data.orders_target);
     ['sales','indeed','orders'].forEach(k => {
       const el = document.getElementById('tgt-' + k);
       if (el && state.targets[k]) el.value = state.targets[k];
